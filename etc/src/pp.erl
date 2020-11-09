@@ -1,7 +1,7 @@
 -module(pp).
 % Pre-processor
 -export([eraseAnn/1,getUDTs/1,getFns/1
-        ,fmapPEFns/2,getModule/1,getRecs/1]).
+        ,fmapPEFns/2,getModule/1,getRecs/1, getSpecs/1]).
 
 eraseAnn(Forms) ->
     lists:filter(fun(F) ->
@@ -16,6 +16,9 @@ getUDTs(Forms) ->
 
 getRecs(Forms) ->
     getAttributes(Forms,'record').
+
+getSpecs(Forms) ->
+        getAttributes(Forms,'spec').
 
 getAttributes(Forms,Attribute) ->
     lists:filter(fun (Node) -> 
