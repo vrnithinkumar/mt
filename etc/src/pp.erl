@@ -1,7 +1,7 @@
 -module(pp).
 % Pre-processor
 -export([eraseAnn/1,getUDTs/1,getFns/1
-        ,fmapPEFns/2,getModule/1,getRecs/1]).
+        ,fmapPEFns/2,getModule/1,getRecs/1, getSpecs/1,getImprtdMods/1, getFile/1]).
 
 eraseAnn(Forms) ->
     lists:filter(fun(F) ->
@@ -16,6 +16,9 @@ getUDTs(Forms) ->
 
 getRecs(Forms) ->
     getAttributes(Forms,'record').
+
+getSpecs(Forms) ->
+        getAttributes(Forms,'spec').
 
 getAttributes(Forms,Attribute) ->
     lists:filter(fun (Node) -> 
@@ -37,3 +40,11 @@ fmapPEFns(Fun,[{attribute,_,etc,pe}|[F|Forms]]) -> [Fun(F) | fmapPEFns(Fun,Forms
 fmapPEFns(Fun,[F|Forms]) -> [F | fmapPEFns(Fun,Forms)].
 
 getModule(Forms) -> {attribute,_,module,Name} = lists:nth(2,Forms),Name.
+
+getImprtdMods(Forms) ->
+    MAs = getAttributes(Forms, import),
+    lists:map(fun({attribute, _, import, {Name, _}}) -> Name end, MAs).
+
+getFile(Forms) ->
+    [{attribute,1,file,{File, _}}] = getAttributes(Forms, file),
+    File.

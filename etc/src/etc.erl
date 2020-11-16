@@ -8,9 +8,15 @@
     type/1
 ]).
 
+%% PRINT Debugging macro%%
+-ifndef(PRINT).
+-define(PRINT(Var), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
+-endif.
+
 -export([parse_transform/2]).
 
 -export([main/1]).
+-export([main_spec/1]).
 
 -type lno() :: integer().
 -type var() :: {var, lno(), atom()}.
@@ -18,6 +24,10 @@
 -type expr() :: var() | {op,lno(),atom(),expr(),expr()}.
 
 main(Args0) ->
+    % system_flag(trap_exit, true),
+    process_flag(trap_exit, true),
+    PidT = self(),
+    % ?PRINT(PidT),
     Args = ["+{parse_transform, tidy}"] ++ 
     case lists:member("+noti",Args0) of
         true -> [];
@@ -29,7 +39,43 @@ main(Args0) ->
     end ++ Args0,
     erl_compile2:compile_cmdline(Args).
 
+
+main_spec(Args0) ->
+    process_flag(trap_exit, true),
+    Args = ["+{parse_transform, spec}"] ++ 
+    case lists:member("+noti",Args0) of
+        true -> [];
+        false -> ["+{parse_transform, spec}"]
+    end ++ 
+    case lists:member("+pe",Args0) of
+        true -> ["+{parse_transform, spec}"];
+        false -> []
+    end ++ Args0 ++ ["+{test, cool}"],
+    erl_compile2:compile_cmdline(Args).
+
 parse_transform(Forms,_) ->
+    % ?PRINT(Forms),
+    % PidT = self(),
+    % ?PRINT(PidT),
+    Mods = pp:getImprtdMods(Forms),
+    % ?PRINT(Mods),
+    File = pp:getFile(Forms),
+    ?PRINT(File),
+    ModPaths = dm:get_module_paths(Mods, File),
+    ModRes = dm:check_deps(ModPaths),
+    ?PRINT(ModRes),
+    % Mod = pp:getModule(Forms),
+    % {Pid, Ref} = case Mod of
+    %     check_cases -> spawn_monitor(etc, main_spec, [["/Users/vr/WorkSpace/Thesis/tests/fifo.erl"]]);
+    %     _ -> {self(), no_result}
+    % end,
+    % % monitor(Pid),
+    % ?PRINT(Ref),
+    % ?PRINT(Pid),
+    Specs = pp:getSpecs(Forms),
+    % ?PRINT(Specs),
+    FTypes = getAllFunTypes(Specs),
+    ?PRINT(FTypes),
     % get all user define data types (UDTs) 
     UDTs = pp:getUDTs(Forms),
     % add UDTs to default env
@@ -69,9 +115,13 @@ typeCheckSCC(Functions,Env) ->
         FunQName = util:getFnQName(F), 
         env:extend(FunQName, hm:fresh(util:getLn(F)), AccEnv)
     end, Env, Functions),
+    % ?PRINT(FreshEnv),
     {InfCs,InfPs} = lists:foldl(fun(F,{AccCs,AccPs}) ->
         FunQName = util:getFnQName(F),
         {T,Cs,Ps} = infer(FreshEnv,F),
+        % ?PRINT(T),
+        % ?PRINT(Cs),
+        % ?PRINT(Ps),
         {FreshT,_} = lookup(FunQName, FreshEnv, util:getLn(F)),
         { unify(T, FreshT) ++ Cs ++ AccCs
         , Ps ++ AccPs}
@@ -106,11 +156,14 @@ infer(_,{float,L,_}) ->
     {hm:bt(float,L),[],[]}; 
 infer(Env,{clause,L,_,_,_}=Node) ->       
     ClausePatterns = clause_patterns(Node),
+    % ?PRINT(ClausePatterns),
     % Infer types of arguments (which are in the form of patterns)
     % Env_ is Env extended with arg variables
     {ArgTypes, Env_, CsArgs, PsArgs} = inferPatterns(Env,ClausePatterns),
     ClauseGaurds = clause_guard(Node),
     {CsGaurds, PsGaurds} = checkGaurds(Env_,ClauseGaurds),
+    % ?PRINT(CsGaurds),
+    % ?PRINT(PsGaurds),
     {ReturnType, CsBody, PsBody} = inferClauseBody(Env_,clause_body(Node)),
     {hm:funt(ArgTypes,ReturnType,L)
     , CsArgs ++ CsGaurds ++ CsBody 
@@ -137,10 +190,12 @@ infer(Env,{call,L,{atom,_,element},[{integer,_,N},{tuple,_,Es}]}) ->
             {lists:nth(N,Ts),Cs,Ps}
     end;
 infer(Env,{call,L,F,Args}) ->
-    {T1,Cs1,Ps1} = inferFn(Env,F,length(Args)),   
+    {T1,Cs1,Ps1} = inferFn(Env,F,length(Args)),
+    %% disable guard check for non functions
+    Env_ = env:disableGuardExprEnv(Env),
     {T2,Cs2,Ps2} = lists:foldl(
         fun(X, {AccT,AccCs,AccPs}) -> 
-            {T,Cs,Ps} = infer(Env,X),
+            {T,Cs,Ps} = infer(Env_,X),
             {AccT ++ [T], AccCs ++ Cs, AccPs ++ Ps}
         end
         , {[],[],[]}, Args),
@@ -334,6 +389,7 @@ infer(Env,Node) ->
             end,
             % list of clause inference results
             ClausesInfRes = lists:map(fun(C) -> infer(Env,C) end, Clauses),
+            % ?PRINT(ClausesInfRes),
             % "flatten" clause inference results
             {InfTypes, InfCs, InfPs} = lists:foldr(
                 fun({T,Cs,Ps}, {AccTypes,AccCs,AccPs}) 
@@ -446,7 +502,7 @@ inferFn(Env,X,_) ->
 checkGaurds(Env,{tree,disjunction,_,Conjuctions}) ->
     lists:foldr(fun({tree,conjunction,_,Exprs}, {DAccCs, DAccPs}) ->
         {Cs,Ps} = lists:foldr(fun(Expr,{CAccCs,CAccPs}) -> 
-            {InfT,InfCs,InfPs} = infer(Env,Expr),
+            {InfT,InfCs,InfPs} = infer(env:enableGuardExprEnv(Env),Expr),
             { unify(InfT,hm:bt(boolean,hm:getLn(InfT))) ++ InfCs ++ CAccCs
             , InfPs ++ CAccPs} 
         end, {[],[]}, Exprs),
@@ -537,11 +593,36 @@ unify(Type1,Type2) -> [{Type1,Type2}].
 
 -spec lookup(hm:tvar(),hm:env(),integer()) -> {hm:type(),[hm:predicate()]}.
 lookup(X,Env,L) ->
+    case env:isGuardExprEnabled(Env) of
+        false ->
+            case env:lookup(X,Env) of
+                undefined   ->
+                    erlang:error({type_error,util:to_string(X) ++ 
+                        " not bound on line " ++ util:to_string(L)});
+                T           ->
+                    {FT,Ps} = hm:freshen(T),
+                    {hm:replaceLn(FT,0,L),Ps}
+            end;
+        true -> 
+            case env:checkGuard(X,Env) of
+                undefined   ->
+                    lookup_(X, Env, L);
+                    % non supported guard will be a compiler error
+                    % ,erlang:error({type_error,util:to_string(X) ++ 
+                    %     " unsupported guard on line " ++ util:to_string(L)});
+                T           ->
+                    {FT,Ps} = hm:freshen(T),
+                    {hm:replaceLn(FT,0,L),Ps}
+            end
+    end.
+
+-spec lookup_(hm:tvar(),hm:env(),integer()) -> {hm:type(),[hm:predicate()]}.
+lookup_(X,Env,L) ->
     case env:lookup(X,Env) of
-        undefined   -> 
+        undefined   ->
             erlang:error({type_error,util:to_string(X) ++ 
                 " not bound on line " ++ util:to_string(L)});
-        T           -> 
+        T           ->
             {FT,Ps} = hm:freshen(T),
             {hm:replaceLn(FT,0,L),Ps}
     end.
@@ -584,12 +665,19 @@ lookupRecord(X,Env,L) ->
 
 -spec addUDTNode(hm:env(),erl_syntax:syntaxTree()) -> hm:env().
 addUDTNode(Node,Env) ->
-    addUDT(element(4,Node),Env,util:getLn(Node)).    
+    %?PRINT(Node),
+    % UDT = element(4,Node),
+    % ?PRINT(UDT),
+    addUDT(element(4,Node),Env,util:getLn(Node)).
 
 -spec addUDT(hm:env(),erl_syntax:syntaxTree(),integer()) -> hm:env().
 addUDT({TypeConstr,DataConstrs,Args},Env,L) ->
     % make type constructor
+    % ?PRINT(TypeConstr),
+    % ?PRINT(DataConstrs),
+    % ?PRINT(Args),
     Type = hm:tcon(TypeConstr,lists:map(fun node2type/1, Args),L),
+
     % add every data constructor to Env
     lists:foldl(fun({DConstr,DConstrType}, AccEnv) ->
         PolyDConstrType = hm:generalize(DConstrType,Env,[]),
@@ -603,18 +691,75 @@ getConstrTypes(Type,{atom,L,DataConstr}) ->
 getConstrTypes(Type,{type,L,tuple,[{atom,_,DataConstr}|Args]}) ->
     ArgTypes = lists:map(fun node2type/1, Args),
     [{{DataConstr,length(Args)},hm:funt(ArgTypes,Type,L)}];
+getConstrTypes(_Type,{type,_L,tuple,_Args}) ->
+    [];
 getConstrTypes(Type,{type,_,union,DataConstrDefns}) -> 
     lists:concat(
         lists:map(
-            fun(DCD) -> getConstrTypes(Type,DCD) end, DataConstrDefns)).
+            fun(DCD) -> getConstrTypes(Type,DCD) end, DataConstrDefns));
+getConstrTypes(Type, {type, L, BuiltInType, []}) ->
+    [{{BuiltInType,0}, hm:funt([hm:bt(BuiltInType, 0)],Type, L)}];
+getConstrTypes(Type, {user_type, L, UserType, []}) ->
+    [{{UserType,0}, hm:funt([hm:bt(UserType, 0)], Type, L)}];
+getConstrTypes(Type, DataConstrs) ->
+    % ?PRINT(Type),
+    % ?PRINT(DataConstrs),
+    [].
 
 % converts a type (node) in the AST to a hm:type()
 -spec node2type(erl_syntax:syntaxTree()) -> hm:type().
 node2type({var,L,X}) -> hm:tvar(X,L);
 node2type({type,L,T,[]}) -> hm:bt(T,L);
+node2type({type,L,tuple, any}) -> hm:tcon("Tuple",[],L);
 node2type({type,L,tuple,Args}) -> hm:tcon("Tuple",lists:map(fun node2type/1, Args),L);
 node2type({type,L,list,Args}) -> hm:tcon("List",lists:map(fun node2type/1, Args),L);
-node2type({user_type,L,T,Args}) -> hm:tcon(T,lists:map(fun node2type/1, Args),L).
+node2type({type,L,union,Args}) -> hm:tcon("Union",lists:map(fun node2type/1, Args),L);
+node2type({ann_type,_L,[_TVar, TNode]}) -> node2type(TNode);
+node2type({user_type,L,T,Args}) -> hm:tcon(T,lists:map(fun node2type/1, Args),L);
+node2type({type,L,'fun', [Args, RType]}) -> hm:funt(node2types(Args), node2type(RType), L);
+node2type({type,_L,'bounded_fun', [Func, Constraints]}) -> 
+    FunT = node2type(Func),
+    % TODO : clean up
+    CTypes = lists:map(fun node2Constraint/1, Constraints),
+    CTMap = lists:foldl(fun({VarT, Type}, Map) ->
+        %Update the type line number
+        NewVarT = hm:replaceLn(VarT,hm:getLn(VarT), hm:getLn(FunT)),
+        maps:put(NewVarT, Type, Map)
+    end, maps:new(), CTypes),
+    NT = applyConstraints(FunT, CTMap),
+    NT;
+node2type({atom,_L,true}) -> 
+    hm:bt(boolean,0);
+node2type({atom,_L,false}) -> 
+    hm:bt(boolean,0);
+node2type(Node) -> 
+    ?PRINT(Node),
+    hm:bt(any, 0).
+
+% converts a type (node) in the AST to a list of hm:type()
+-spec node2types(erl_syntax:syntaxTree()) -> [hm:type()].
+node2types({type,_,product, Types}) ->
+    lists:map(fun node2type/1, Types);
+node2types({type,_,union, Types}) ->
+    lists:map(fun node2type/1, Types).
+
+node2Constraint({type,_L,constraint,[_CType,[Var, Type]]}) ->
+    % ?PRINT(Var),
+    % ?PRINT(Type),
+    {node2type(Var), node2type(Type)}.
+
+applyConstraints({'funt',L,Args,RType}, CTMap) ->
+    SubstitutedArgs = lists:map(fun(Arg)-> 
+        case maps:is_key(Arg, CTMap) of
+            true -> maps:get(Arg,CTMap);
+            false -> Arg
+        end
+    end , Args),
+    SubstitutedRType = case maps:is_key(RType, CTMap) of
+        true -> maps:get(RType,CTMap);
+        false -> RType
+    end,
+    hm:funt(SubstitutedArgs, SubstitutedRType, L).
 
 % given a list branches, add all the common bindings (in all of them) to the env
 addCommonBindings(Clauses,Env,L) ->
@@ -696,3 +841,13 @@ getDefaultValue({typed_record_field,{record_field,_,{atom,_,_},Value},_}) ->
     {just,Value};
 getDefaultValue(T) ->
     {nothing}.
+
+%% Spec parsing
+getAllFunTypes(Specs) ->
+    % ?PRINT(Specs),
+    lists:map(fun(Spec) -> specToType(element(4, Spec)) end, Specs).
+
+specToType({QFName, Types}) ->
+    % ?PRINT(QFName),
+    % ?PRINT(Types),
+    {QFName, lists:map(fun node2type/1, Types)}.
