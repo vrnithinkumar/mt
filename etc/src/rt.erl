@@ -14,7 +14,7 @@ defaultClasses() -> [
 
 -spec defaultEnv() -> hm:env().
 defaultEnv() ->
-    lists:foldl(fun({X,T},Env) -> env:extend(X,T,Env) end, env:empty(), [
+    lists:foldl(fun({X,T},Env) -> env:extend(X,T,Env) end, envWithGuards(), [
         {'+', hm:forall(a,[{class,"Num", hm:tvar(a,0)}],
                 hm:funt([hm:tvar(a,0),hm:tvar(a,0)],hm:tvar(a,0),0),0) },
         {'-', hm:forall(a,[{class,"Num", hm:tvar(a,0)}],
@@ -84,3 +84,29 @@ defaultEnv() ->
         {{register,2}, hm:forall(a,[{class,"Port", hm:tvar(a,0)}],
                 hm:funt([hm:bt(atom,0),hm:tvar(a,0)],hm:bt(boolean,0),0),0)}
     ]).
+
+-spec envWithGuards() -> hm:env().
+envWithGuards() ->
+    lists:foldl(fun({X,T},Env) -> env:addGuard(X,T,Env) end, env:empty(), 
+    [{{is_atom,1}, hm:funt([hm:bt(atom,0)],hm:bt(boolean,0),0)},
+    {{is_binary,1}, hm:funt([hm:bt(boolean,0)],hm:bt(boolean,0),0)},
+    {{is_bitstring,1}, hm:funt([hm:bt(bitstring,0)],hm:bt(boolean,0),0)},
+    {{is_boolean,1}, hm:funt([hm:bt(boolean,0)],hm:bt(boolean,0),0)},
+    {{is_float,1}, hm:funt([hm:bt(float,0)],hm:bt(boolean,0),0)},
+    {{is_function,1}, hm:funt([hm:bt('fun',0)],hm:bt(boolean,0),0)},
+    {{is_function,2}, hm:funt([hm:bt(boolean,0), hm:bt(integer,0)],hm:bt(boolean,0),0)},
+    {{is_integer,1}, hm:funt([hm:bt(integer,0)],hm:bt(boolean,0),0)},
+    {{is_list,1}, hm:forall(a,[],
+            hm:funt([hm:tcon("List",[hm:tvar(a,0)],0)],
+                    hm:bt(boolean,0),0),0)},
+    {{is_map,1}, hm:forall(a,[],
+            hm:funt([hm:tcon("Map",[hm:tvar(a,0)],0)],
+                    hm:bt(boolean,0),0),0)},
+    {{is_pid,1}, hm:funt([hm:bt(pid,0)],hm:bt(boolean,0),0)},
+    {{is_port,1}, hm:funt([hm:bt(port,0)],hm:bt(boolean,0),0)},
+%     {{is_record,2}, hm:funt([hm:bt(port,0)],hm:bt(boolean,0),0)},
+%     {{is_record,3}, hm:funt([hm:bt(port,0)],hm:bt(boolean,0),0)},
+    {{is_reference,1}, hm:funt([hm:bt(reference,0)],hm:bt(boolean,0),0)},
+    {{is_map,1}, hm:forall(a,[],
+            hm:funt([hm:tcon("Tuple",[hm:tvar(a,0)],0)],
+                    hm:bt(boolean,0),0),0)}]).
