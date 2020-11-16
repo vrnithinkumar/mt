@@ -4,7 +4,8 @@
         ,freeInEnv/1,length/1
         ,dumpModuleBindings/2,readModuleBindings/1
         ,lookupRemote/3,extendRecord/4,lookupRecord/2
-        ,isPatternInf/1,setPatternInf/1]).
+        ,isPatternInf/1,setPatternInf/1,addGuard/3,checkGuard/2
+        ,enableGuardExprEnv/1,disableGuardExprEnv/1,isGuardExprEnabled/1]).
 -export_type([env/0]).
 
 % Type checker ENvironment
@@ -12,7 +13,9 @@
     {   bindings        = [],
         constructors    = [],
         recFieldMap     = [],
-        isPattern       = false
+        guardExpr       = [],
+        isPattern       = false,
+        isGuardExpr     = false
     }).
 
 -type env() :: ten.
@@ -27,6 +30,16 @@ lookup(X,Env) -> proplists:get_value(X, Env#ten.bindings).
 is_bound(X,Env) -> proplists:is_defined(X,Env#ten.bindings).
 
 extend(X,A,Env) -> Env#ten{bindings = [{X,A} | Env#ten.bindings]}.
+
+addGuard(X,A,Env) -> Env#ten{guardExpr = [{X,A} | Env#ten.guardExpr]}.
+
+checkGuard(X,Env) -> proplists:get_value(X, Env#ten.guardExpr).
+
+enableGuardExprEnv(Env) -> Env#ten{isGuardExpr = true}.
+
+disableGuardExprEnv(Env) -> Env#ten{isGuardExpr = false}.
+
+isGuardExprEnabled(Env) -> Env#ten.isGuardExpr.
 
 extendConstr(X,A,Env) -> Env#ten{constructors = [{X,A} | Env#ten.constructors]}.
 
