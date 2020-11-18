@@ -16,7 +16,6 @@
 -export([parse_transform/2]).
 
 -export([main/1]).
--export([main_spec/1]).
 
 -type lno() :: integer().
 -type var() :: {var, lno(), atom()}.
@@ -39,20 +38,6 @@ main(Args0) ->
     end ++ Args0,
     erl_compile2:compile(Args).
 
-
-main_spec(Args0) ->
-    process_flag(trap_exit, true),
-    Args = ["+{parse_transform, spec}"] ++ 
-    case lists:member("+noti",Args0) of
-        true -> [];
-        false -> ["+{parse_transform, spec}"]
-    end ++ 
-    case lists:member("+pe",Args0) of
-        true -> ["+{parse_transform, spec}"];
-        false -> []
-    end ++ Args0 ++ ["+{test, cool}"],
-    erl_compile2:compile(Args).
-
 parse_transform(Forms,_) ->
     % ?PRINT(Forms),
     % PidT = self(),
@@ -62,8 +47,8 @@ parse_transform(Forms,_) ->
     File = pp:getFile(Forms),
     ?PRINT(File),
     ModPaths = dm:get_module_paths(Mods, File),
-    ModRes = dm:check_deps(ModPaths),
-    ?PRINT(ModRes),
+    % ModRes = dm:check_deps(ModPaths),
+    % ?PRINT(ModRes),
     % Mod = pp:getModule(Forms),
     % {Pid, Ref} = case Mod of
     %     check_cases -> spawn_monitor(etc, main_spec, [["/Users/vr/WorkSpace/Thesis/tests/fifo.erl"]]);
@@ -111,7 +96,7 @@ parse_transform(Forms,_) ->
     catch
         error:{type_error,Reason} -> erlang:error("Type Error: " ++ Reason)
     end,
-    pp:eraseAnn(Forms).    
+    pp:eraseAnn(Forms).
 
 typeCheckSCC(Functions,Env) ->
     % assign a fresh type variable to every function
@@ -860,9 +845,13 @@ specToType({QFName, Types}) ->
 
 checkWithSpec(Spec, X, T) -> 
     SpecTs = spec:lookup(X, Spec),
-    Lines = lists:map(fun(T) -> hm:getLn(T) end, SpecTs),
-    Same = not lists:member(false, lists:map(fun(ST) -> hm:is_same(ST, T) end, SpecTs)),
-    case Same of
-        true  -> io:fwrite("Same as type spec defined in lines ~p ~n", [Lines]);
-        false -> io:fwrite("Different from type defined in lines ~p ~n", [Lines])
+    case SpecTs of 
+        undefined -> [];
+         _ ->
+        Lines = lists:map(fun(ST) -> hm:getLn(ST) end, SpecTs),
+        Same = not lists:member(false, lists:map(fun(ST) -> hm:is_same(ST, T) end, SpecTs)),
+        case Same of
+            true  -> io:fwrite("Same as type spec defined in lines ~p ~n", [Lines]);
+            false -> io:fwrite("Different from type defined in lines ~p ~n", [Lines])
+        end
     end.
