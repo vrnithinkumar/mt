@@ -37,7 +37,7 @@ main(Args0) ->
         true -> ["+{parse_transform, pe}"];
         false -> []
     end ++ Args0,
-    erl_compile2:compile_cmdline(Args).
+    erl_compile2:compile(Args).
 
 
 main_spec(Args0) ->
@@ -51,7 +51,7 @@ main_spec(Args0) ->
         true -> ["+{parse_transform, spec}"];
         false -> []
     end ++ Args0 ++ ["+{test, cool}"],
-    erl_compile2:compile_cmdline(Args).
+    erl_compile2:compile(Args).
 
 parse_transform(Forms,_) ->
     % ?PRINT(Forms),
