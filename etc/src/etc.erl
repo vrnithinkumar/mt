@@ -74,8 +74,11 @@ parse_transform(Forms,_) ->
     % ?PRINT(Pid),
     Specs = pp:getSpecs(Forms),
     % ?PRINT(Specs),
-    FTypes = getAllFunTypes(Specs),
-    ?PRINT(FTypes),
+    Spec = getSpecWithAllFuns(Specs),
+    % ?PRINT(Spec),
+    % LR = spec:lookup({test_spec,1}, Spec),
+    % ?PRINT(LR),
+    % hm:pretty(lists:nth(0,FTypes)),
     % get all user define data types (UDTs) 
     UDTs = pp:getUDTs(Forms),
     % add UDTs to default env
@@ -100,6 +103,7 @@ parse_transform(Forms,_) ->
             Module = pp:getModule(Forms),
             env:dumpModuleBindings(Env_,Module),
             lists:map(fun({X,T}) -> 
+                checkWithSpec(Spec, X, T),
                 io:fwrite("~p :: ",[X]), 
                 hm:pretty(T), 
                 io:fwrite("~n",[])
@@ -843,11 +847,22 @@ getDefaultValue(T) ->
     {nothing}.
 
 %% Spec parsing
-getAllFunTypes(Specs) ->
+getSpecWithAllFuns(Specs) ->
     % ?PRINT(Specs),
-    lists:map(fun(Spec) -> specToType(element(4, Spec)) end, Specs).
+    SpecFns = lists:map(fun(Spec) -> specToType(element(4, Spec)) end, Specs),
+    Spec = spec:empty(),
+    spec:add_functions(SpecFns, Spec).
 
 specToType({QFName, Types}) ->
     % ?PRINT(QFName),
     % ?PRINT(Types),
     {QFName, lists:map(fun node2type/1, Types)}.
+
+checkWithSpec(Spec, X, T) -> 
+    SpecTs = spec:lookup(X, Spec),
+    Lines = lists:map(fun(T) -> hm:getLn(T) end, SpecTs),
+    Same = not lists:member(false, lists:map(fun(ST) -> hm:is_same(ST, T) end, SpecTs)),
+    case Same of
+        true  -> io:fwrite("Same as type spec defined in lines ~p ~n", [Lines]);
+        false -> io:fwrite("Different from type defined in lines ~p ~n", [Lines])
+    end.

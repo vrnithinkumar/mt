@@ -3,7 +3,7 @@
     interFoldEffect/4,pairwiseChunk/1,
     getFnName/1,getFnArgLen/1,getFnClauses/1,
     getLn/1,getFnQName/1,eqLists/3,
-    keysIntersection/1,allElemEq/2,find/2]).
+    keysIntersection/1,allElemEq/2,find/2, list_and/1]).
 -export_type([maybe/1]).
 
 -type maybe(A) :: {nothing} | {just,A}.
@@ -62,3 +62,6 @@ find(Fun,[X|Xs]) ->
         true -> {just,X};
         false -> find(Fun,Xs)
     end.
+
+list_and(List) -> 
+    not lists:member(false, List).

@@ -14,6 +14,17 @@
 -endif.
 
 -export([parse_transform/2]).
+-export([empty/0, lookup/2, extend/3, add_functions/2]).
+-export_type([spec/0]).
+
+% Type checker ENvironment
+-record(specenv, 
+    {   functions    = [],
+        exp_types    = []
+    }).
+
+-type spec() :: specenv.
+empty() -> #specenv{}.
 
 parse_transform(Forms,_Opt) ->
     % Pid = self(),
@@ -21,3 +32,7 @@ parse_transform(Forms,_Opt) ->
     Mods_ = pp:getImprtdMods(Forms),
     % ?PRINT(Mods_),
     pp:eraseAnn(Forms).
+
+extend(X,A,Spec) -> Spec#specenv{functions = [{X,A} | Spec#specenv.functions]}.
+add_functions(Fs,Spec) -> Spec#specenv{functions = Fs}.
+lookup(X, Spec) -> proplists:get_value(X, Spec#specenv.functions).

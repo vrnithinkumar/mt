@@ -8,6 +8,7 @@
 -export([bt/2,funt/3,tvar/2,tcon/3,forall/4]).
 -export([freshen/1,generalize/3,eqType/2,fresh/1]).
 -export([getLn/1,pretty/1,prettyCs/2,prettify/2,replaceLn/3]).
+-export([is_same/2]).
 -export_type([constraint/0,type/0]).
 
 
@@ -19,11 +20,16 @@
 -type class() :: string().
 -type predicate() :: {class, class(), type()} | {oc, type(),[type()]}.
 
+%% PRINT Debugging macro%%
+-ifndef(PRINT).
+-define(PRINT(Var), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
+-endif.
+
 %%%%%%%%%%%%% Type variable constructors
 
 -type type() :: 
     {bt, integer(), type()}
-    | {funt, integer(), [type()], type()} 
+    | {funt, integer(), [type()], type()}
     | {tvar, integer(), type()}
     | {tcon, integer(), string(),[type()]}
     | {forall, type(), [predicate()], type()}
@@ -77,7 +83,7 @@ unify ({funt,L1,As1, B1}, {funt,L2,As2, B2}) ->
         error:{type_error,"arg_mismatch"} -> erlang:error({type_error, 
                                     "Number of arguments to function on line " ++ util:to_string(L1) ++ " do not match"
                                     ++ " arguments on line " ++ util:to_string(L2)})
-    end;  
+    end;
 unify ({tvar,L,V},T) ->
     Eq  = eqType({tvar, L,V}, T),
     Occ = occurs(V,T),
@@ -399,3 +405,30 @@ prettyCs([{T1,T2}|Cs],S) ->
     S__ = prettify(S_,T2),
     io:fwrite("~n"),
     prettyCs(Cs,S__).
+
+%% check types are same irrespective of line number
+is_same({bt, _, T1}, {bt, _, T2}) -> T1 == T2;
+is_same({funt, _, T1As, T1B}, {funt, _, T2As, T2B}) -> 
+    % ?PRINT(T1As), ?PRINT(T2As),
+    IsParamsMatch = case length(T1As) == length(T2As) of 
+        true  -> is_same_types(T1As,T2As);
+        false -> false
+    end,
+    IsParamsMatch and is_same(T1B, T2B);
+is_same({tvar, _, A1}, {tvar, _, A2}) -> A1 == A2;
+is_same({tcon, _, N, A1s}, {tcon, _, N, A2s}) -> is_same_types(A1s, A2s);
+is_same({forall, _, P1s, A1},{forall, _, P2s, A2}) ->
+    is_same_predicates(P1s, P2s) and is_same(A1, A2);
+is_same(T1,{whilst,[],T2}) -> is_same(T1, T2);
+is_same({whilst,[],T1}, T2) -> is_same(T1, T2);
+is_same({whilst,P1s,A1},{whilst,P2s,A2}) -> is_same_predicates(P1s, P2s) and is_same(A1, A2);
+is_same(T1,T2) -> io:fwrite("Wrong types ~p : ~p ",[T1, T2]), false.
+
+%% helpers
+is_same_types(T1s,T2s)->
+    not lists:member(false,
+            lists:map(fun({T1, T2}) -> is_same(T1, T2) end, lists:zip(T1s,T2s))).
+
+is_same_predicates(P1s,P2s)->
+    not lists:member(false, 
+            lists:map(fun({P1, P2}) -> P1==P2 end, lists:zip(P1s,P2s))).
