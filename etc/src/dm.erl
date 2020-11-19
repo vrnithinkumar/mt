@@ -7,18 +7,14 @@
 
 -export([check_deps/1, get_module_paths/2]).
 
-
 get_module_paths(Modules, Path) ->
     Base = string:join(lists:droplast(string:tokens(Path, "/")), "/"),
     lists:map(fun(M) -> Base ++ "/" ++ atom_to_list(M) ++ ".erl" end, Modules).
 
-check_deps(Modes)->
-    % io:format("Process: ~p~n", [registered()]),
-    Sid = self(),
-    ?PRINT(Sid),
-    lists:map(fun(M) -> 
-        spawn_and_trap(etc, main, M)
-     end, Modes).
+check_deps(Modules)->
+    lists:map(fun(M) ->
+        main_spec([M])
+     end, Modules).
 
 
 spawn_and_wait(M,F,Arg) ->
@@ -31,10 +27,21 @@ spawn_and_wait(M,F,Arg) ->
         timeout
     end.
 
-
 spawn_and_trap(M,F,Arg) ->
     Pid = spawn_link(M, F, [[Arg]]),
     ?PRINT(Pid),
     receive
 	{'EXIT', Pid, Reason} -> Reason
     end.
+
+main_spec(Args0) ->
+    Args = ["+{parse_transform, tidy}"] ++ 
+    case lists:member("+noti",Args0) of
+        true -> [];
+        false -> ["+{parse_transform, etc}"]
+    end ++ 
+    case lists:member("+pe",Args0) of
+        true -> ["+{parse_transform, pe}"];
+        false -> []
+    end ++ Args0,
+    erl_compile2:compile(Args).

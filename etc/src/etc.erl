@@ -23,10 +23,6 @@
 -type expr() :: var() | {op,lno(),atom(),expr(),expr()}.
 
 main(Args0) ->
-    % system_flag(trap_exit, true),
-    process_flag(trap_exit, true),
-    PidT = self(),
-    % ?PRINT(PidT),
     Args = ["+{parse_transform, tidy}"] ++ 
     case lists:member("+noti",Args0) of
         true -> [];
@@ -39,15 +35,12 @@ main(Args0) ->
     erl_compile2:compile(Args).
 
 parse_transform(Forms,_) ->
-    % ?PRINT(Forms),
-    % PidT = self(),
-    % ?PRINT(PidT),
     Mods = pp:getImprtdMods(Forms),
     % ?PRINT(Mods),
     File = pp:getFile(Forms),
     ?PRINT(File),
     ModPaths = dm:get_module_paths(Mods, File),
-    % ModRes = dm:check_deps(ModPaths),
+    ModRes = dm:check_deps(ModPaths),
     % ?PRINT(ModRes),
     % Mod = pp:getModule(Forms),
     % {Pid, Ref} = case Mod of
