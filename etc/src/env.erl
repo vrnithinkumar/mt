@@ -5,12 +5,21 @@
         ,dumpModuleBindings/2,readModuleBindings/1
         ,lookupRemote/3,extendRecord/4,lookupRecord/2
         ,isPatternInf/1,setPatternInf/1,addGuard/3,checkGuard/2
-        ,enableGuardExprEnv/1,disableGuardExprEnv/1,isGuardExprEnabled/1]).
+        ,enableGuardExprEnv/1,disableGuardExprEnv/1
+        ,isGuardExprEnabled/1 %,addModuleBindings/2
+        ,addExtModuleBindings/2,lookup_ext_binding/2, printExtBindings/1]).
+
 -export_type([env/0]).
+
+%% PRINT Debugging macro%%
+-ifndef(PRINT).
+-define(PRINT(Var), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
+-endif.
 
 % Type checker ENvironment
 -record(ten, 
     {   bindings        = [],
+        ext_bindings    = [],
         constructors    = [],
         recFieldMap     = [],
         guardExpr       = [],
@@ -26,6 +35,8 @@ default() -> rt:defaultEnv().
 
 % lookup :: (Var, [Var,Type])  -> Type
 lookup(X,Env) -> proplists:get_value(X, Env#ten.bindings).
+
+lookup_ext_binding(X,Env) -> proplists:get_value(X, Env#ten.ext_bindings).
 
 is_bound(X,Env) -> proplists:is_defined(X,Env#ten.bindings).
 
@@ -77,7 +88,7 @@ length(Env) -> erlang:length(Env#ten.bindings).
 
 dumpModuleBindings(Env,Module) ->
     InterfaceFile = lists:concat([Module,".ei"]),
-    ModuleBindings = Env#ten.bindings -- (env:default())#ten.bindings,
+    ModuleBindings = Env#ten.bindings -- ((env:default())#ten.bindings ++ Env#ten.ext_bindings),
     file:write_file(InterfaceFile,erlang:term_to_binary(ModuleBindings)).
 
 readModuleBindings(Module) ->
@@ -85,13 +96,24 @@ readModuleBindings(Module) ->
     {ok, Data} = file:read_file(InterfaceFile),
     erlang:binary_to_term(Data).
 
-lookupRemote(Module,X,_) ->
+addExtModuleBindings(Env, Module) ->
+    Bindings = readModuleBindings(Module),
+    Env#ten{ext_bindings = Env#ten.ext_bindings ++ Bindings}.
+
+addModuleBindings(Env, Module) ->
+    Bindings = readModuleBindings(Module),
+    Env#ten{bindings = Env#ten.bindings ++ Bindings}.
+
+lookupRemote(Module,X,_Env) ->
     InterfaceFile = lists:concat([Module,".ei"]),
     case filelib:is_regular(InterfaceFile)of
         true -> lookup(X,#ten{bindings = readModuleBindings(Module)});
         false -> na
     end.
 
+printExtBindings(Env) ->
+    Ext = Env#ten.ext_bindings,
+    ?PRINT(Ext).
 %%%%%%%%%%%%%%%%%%%
 isPatternInf(Env) -> 
     Env#ten.isPattern.

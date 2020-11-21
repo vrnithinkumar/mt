@@ -38,9 +38,9 @@ parse_transform(Forms,_) ->
     Mods = pp:getImprtdMods(Forms),
     % ?PRINT(Mods),
     File = pp:getFile(Forms),
-    ?PRINT(File),
+    % ?PRINT(File),
     ModPaths = dm:get_module_paths(Mods, File),
-    ModRes = dm:check_deps(ModPaths),
+    dm:check_deps(ModPaths),
     % ?PRINT(ModRes),
     % Mod = pp:getModule(Forms),
     % {Pid, Ref} = case Mod of
@@ -64,9 +64,13 @@ parse_transform(Forms,_) ->
         addUDTNode(UDT,AccEnv) 
     end, env:default(), UDTs),
     % add all user defined records
-    Env = lists:foldl(fun(Rec,AccEnv) -> 
+    Env1 = lists:foldl(fun(Rec,AccEnv) -> 
         addRec(Rec,AccEnv) 
     end, Env0, pp:getRecs(Forms)),
+    % add all depend external module functions
+    Env = lists:foldl(fun(Module, AccEnv) -> 
+        env:addExtModuleBindings(AccEnv,Module)
+    end, Env1, Mods),
     % get all functions
     Functions = pp:getFns(Forms),
     % make strongly connected components (SCCs) (sorted in topological ordering)
@@ -80,12 +84,14 @@ parse_transform(Forms,_) ->
         Env_ -> 
             Module = pp:getModule(Forms),
             env:dumpModuleBindings(Env_,Module),
+            io:fwrite("Module ~p: ~n",[Module]), 
             lists:map(fun({X,T}) -> 
                 checkWithSpec(Spec, X, T),
-                io:fwrite("~p :: ",[X]), 
+                io:fwrite("  ~p :: ",[X]), 
                 hm:pretty(T), 
                 io:fwrite("~n",[])
-            end, env:readModuleBindings(Module))
+            end, env:readModuleBindings(Module)),
+            io:fwrite("~n",[])
     catch
         error:{type_error,Reason} -> erlang:error("Type Error: " ++ Reason)
     end,
@@ -576,19 +582,11 @@ unify(Type1,Type2) -> [{Type1,Type2}].
 -spec lookup(hm:tvar(),hm:env(),integer()) -> {hm:type(),[hm:predicate()]}.
 lookup(X,Env,L) ->
     case env:isGuardExprEnabled(Env) of
-        false ->
-            case env:lookup(X,Env) of
-                undefined   ->
-                    erlang:error({type_error,util:to_string(X) ++ 
-                        " not bound on line " ++ util:to_string(L)});
-                T           ->
-                    {FT,Ps} = hm:freshen(T),
-                    {hm:replaceLn(FT,0,L),Ps}
-            end;
-        true -> 
+        false -> lookup_(X,Env,L);
+        true  -> 
             case env:checkGuard(X,Env) of
                 undefined   ->
-                    lookup_(X, Env, L);
+                    lookup_(X,Env,L);
                     % non supported guard will be a compiler error
                     % ,erlang:error({type_error,util:to_string(X) ++ 
                     %     " unsupported guard on line " ++ util:to_string(L)});
@@ -602,8 +600,14 @@ lookup(X,Env,L) ->
 lookup_(X,Env,L) ->
     case env:lookup(X,Env) of
         undefined   ->
-            erlang:error({type_error,util:to_string(X) ++ 
-                " not bound on line " ++ util:to_string(L)});
+            case env:lookup_ext_binding(X,Env) of 
+                undefined -> 
+                    erlang:error({type_error,util:to_string(X) ++ 
+                        " not bound on line " ++ util:to_string(L)});
+                ET        ->
+                    {FT,Ps} = hm:freshen(ET),
+                    {hm:replaceLn(FT,0,L),Ps}
+            end;
         T           ->
             {FT,Ps} = hm:freshen(T),
             {hm:replaceLn(FT,0,L),Ps}
