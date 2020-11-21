@@ -35,31 +35,16 @@ main(Args0) ->
     erl_compile2:compile(Args).
 
 parse_transform(Forms,_) ->
+    % check dependent modules
     Mods = pp:getImprtdMods(Forms),
-    % ?PRINT(Mods),
     File = pp:getFile(Forms),
-    % ?PRINT(File),
     ModPaths = dm:get_module_paths(Mods, File),
     dm:check_deps(ModPaths),
-    % ?PRINT(ModRes),
-    % Mod = pp:getModule(Forms),
-    % {Pid, Ref} = case Mod of
-    %     check_cases -> spawn_monitor(etc, main_spec, [["/Users/vr/WorkSpace/Thesis/tests/fifo.erl"]]);
-    %     _ -> {self(), no_result}
-    % end,
-    % % monitor(Pid),
-    % ?PRINT(Ref),
-    % ?PRINT(Pid),
+    % Get specs
     Specs = pp:getSpecs(Forms),
-    % ?PRINT(Specs),
     Spec = getSpecWithAllFuns(Specs),
-    % ?PRINT(Spec),
-    % LR = spec:lookup({test_spec,1}, Spec),
-    % ?PRINT(LR),
-    % hm:pretty(lists:nth(0,FTypes)),
-    % get all user define data types (UDTs) 
-    UDTs = pp:getUDTs(Forms),
     % add UDTs to default env
+    UDTs = pp:getUDTs(Forms),
     Env0 = lists:foldl(fun(UDT,AccEnv) -> 
         addUDTNode(UDT,AccEnv) 
     end, env:default(), UDTs),
