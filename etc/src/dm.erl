@@ -5,13 +5,17 @@
 -define(PRINT(Var), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
 -endif.
 
--export([check_deps/1, get_module_paths/2, save_env/2]).
+-export([check_modules/1,type_check_mods/2]).
+
+type_check_mods(Mods, File) ->
+    ModPaths = get_module_paths(Mods, File),
+    check_modules(ModPaths).
 
 get_module_paths(Modules, Path) ->
     Base = string:join(lists:droplast(string:tokens(Path, "/")), "/"),
     lists:map(fun(M) -> Base ++ "/" ++ atom_to_list(M) ++ ".erl" end, Modules).
 
-check_deps(Modules)->
+check_modules(Modules)->
     lists:map(fun(M) ->
         main_spec([M])
      end, Modules).

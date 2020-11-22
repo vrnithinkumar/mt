@@ -23,6 +23,7 @@
 -type expr() :: var() | {op,lno(),atom(),expr(),expr()}.
 
 main(Args0) ->
+    % ets:new(compile_config, [set, named_table]),
     Args = ["+{parse_transform, tidy}"] ++ 
     case lists:member("+noti",Args0) of
         true -> [];
@@ -35,11 +36,25 @@ main(Args0) ->
     erl_compile2:compile(Args).
 
 parse_transform(Forms,_) ->
+    Module = pp:getModule(Forms),
     % check dependent modules
-    Mods = pp:getImprtdMods(Forms),
+    case ets:whereis(compile_config) of
+        undefined -> ets:new(compile_config, [set, named_table, public]);
+        _ -> false
+    end,
     File = pp:getFile(Forms),
-    ModPaths = dm:get_module_paths(Mods, File),
-    dm:check_deps(ModPaths),
+    % ?PRINT(File),
+    case ets:lookup(compile_config, main_file) of 
+        [] ->  ets:insert(compile_config, {main_file, File});
+         _  -> false
+    end,
+    case ets:lookup(compile_config, Module) of 
+        [] ->  ets:insert(compile_config, {Module, result});
+        Res -> ?PRINT(Res)
+    end,
+
+    Mods = pp:getImprtdMods(Forms),
+    dm:type_check_mods(Mods,File),
     % Get specs
     Specs = pp:getSpecs(Forms),
     Spec = getSpecWithAllFuns(Specs),
@@ -53,8 +68,8 @@ parse_transform(Forms,_) ->
         addRec(Rec,AccEnv) 
     end, Env0, pp:getRecs(Forms)),
     % add all depend external module functions
-    Env = lists:foldl(fun(Module, AccEnv) -> 
-        env:addExtModuleBindings(AccEnv,Module)
+    Env = lists:foldl(fun(Mod, AccEnv) -> 
+        env:addExtModuleBindings(AccEnv,Mod)
     end, Env1, Mods),
     % get all functions
     Functions = pp:getFns(Forms),
@@ -67,7 +82,6 @@ parse_transform(Forms,_) ->
         end, Env, SCCs)
     of  
         Env_ -> 
-            Module = pp:getModule(Forms),
             env:dumpModuleBindings(Env_,Module),
             io:fwrite("Module ~p: ~n",[Module]), 
             lists:map(fun({X,T}) -> 
@@ -636,17 +650,11 @@ lookupRecord(X,Env,L) ->
 
 -spec addUDTNode(hm:env(),erl_syntax:syntaxTree()) -> hm:env().
 addUDTNode(Node,Env) ->
-    %?PRINT(Node),
-    % UDT = element(4,Node),
-    % ?PRINT(UDT),
     addUDT(element(4,Node),Env,util:getLn(Node)).
 
 -spec addUDT(hm:env(),erl_syntax:syntaxTree(),integer()) -> hm:env().
 addUDT({TypeConstr,DataConstrs,Args},Env,L) ->
     % make type constructor
-    % ?PRINT(TypeConstr),
-    % ?PRINT(DataConstrs),
-    % ?PRINT(Args),
     Type = hm:tcon(TypeConstr,lists:map(fun node2type/1, Args),L),
 
     % add every data constructor to Env
@@ -704,7 +712,7 @@ node2type({atom,_L,true}) ->
 node2type({atom,_L,false}) -> 
     hm:bt(boolean,0);
 node2type(Node) -> 
-    ?PRINT(Node),
+    % ?PRINT(Node),
     hm:bt(any, 0).
 
 % converts a type (node) in the AST to a list of hm:type()
@@ -815,14 +823,11 @@ getDefaultValue(T) ->
 
 %% Spec parsing
 getSpecWithAllFuns(Specs) ->
-    % ?PRINT(Specs),
     SpecFns = lists:map(fun(Spec) -> specToType(element(4, Spec)) end, Specs),
     Spec = spec:empty(),
     spec:add_functions(SpecFns, Spec).
 
 specToType({QFName, Types}) ->
-    % ?PRINT(QFName),
-    % ?PRINT(Types),
     {QFName, lists:map(fun node2type/1, Types)}.
 
 checkWithSpec(Spec, X, T) -> 

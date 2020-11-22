@@ -20,6 +20,7 @@
 -record(ten, 
     {   bindings        = [],
         ext_bindings    = [],
+        specs_bindings  = [],
         constructors    = [],
         recFieldMap     = [],
         guardExpr       = [],
@@ -91,6 +92,11 @@ dumpModuleBindings(Env,Module) ->
     ModuleBindings = Env#ten.bindings -- ((env:default())#ten.bindings ++ Env#ten.ext_bindings),
     file:write_file(InterfaceFile,erlang:term_to_binary(ModuleBindings)).
 
+dumpModuleSpecs(Env,Module) ->
+    InterfaceFile = lists:concat([Module,".ei"]),
+    ModuleBindings = Env#ten.bindings -- ((env:default())#ten.bindings ++ Env#ten.ext_bindings),
+    file:write_file(InterfaceFile,erlang:term_to_binary(ModuleBindings)).
+
 readModuleBindings(Module) ->
     InterfaceFile = lists:concat([Module,".ei"]),
     {ok, Data} = file:read_file(InterfaceFile),
@@ -105,11 +111,45 @@ addModuleBindings(Env, Module) ->
     Env#ten{bindings = Env#ten.bindings ++ Bindings}.
 
 lookupRemote(Module,X,_Env) ->
+    case ets:lookup(compile_config, main_file) of 
+        [] -> io:fwrite("No base file found ~n");
+        [{main_file, File}] -> lookupModule(Module, File)
+    end,
     InterfaceFile = lists:concat([Module,".ei"]),
     case filelib:is_regular(InterfaceFile)of
         true -> lookup(X,#ten{bindings = readModuleBindings(Module)});
         false -> na
     end.
+
+lookupModule(Module, File) ->
+    case isAlreadyChecked(Module) of 
+        true -> na;
+        false ->
+            io:fwrite("Running etc for dependent module ~p ~n",[Module]),
+            case getLibModulePath(Module) of 
+                no_lib_module -> dm:type_check_mods([Module], File);
+                Path -> registerAsLib(Module), dm:check_modules([Path])
+            end
+    end.
+
+getLibModulePath(Module) ->
+    LibDir = code:lib_dir(),
+    ModString = atom_to_list(Module),
+    WC = LibDir ++ "/*/src/" ++ ModString ++ ".erl",
+    case filelib:wildcard(WC) of
+        [] -> no_lib_module;
+        [Path | _] -> Path
+    end.
+
+isAlreadyChecked(Module) -> 
+    case ets:lookup(compile_config, Module) of 
+        [] ->  false;
+        _  -> true
+    end.
+
+registerAsLib(Module) -> 
+    ets:insert(compile_config, {Module, stdlib}).
+
 
 printExtBindings(Env) ->
     Ext = Env#ten.ext_bindings,
