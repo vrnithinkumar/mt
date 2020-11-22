@@ -5,7 +5,7 @@
 -define(PRINT(Var), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
 -endif.
 
--export([check_modules/1,type_check_mods/2]).
+-export([check_modules/1,type_check_mods/2, type_infer/1]).
 
 type_check_mods(Mods, File) ->
     ModPaths = get_module_paths(Mods, File),
@@ -63,3 +63,38 @@ open_from_file(FileName) ->
 
 search_stdlib(ModueName) ->
     code:lib_dir(stdlib, ModueName).
+
+type_infer(Module)->
+    case ets:lookup(compile_config, main_file) of 
+        [] -> io:fwrite("No base file found ~n");
+        [{main_file, File}] -> lookupModule(Module, File)
+    end.
+
+lookupModule(Module, File) ->
+    case isAlreadyChecked(Module) of 
+        true -> na;
+        false ->
+            io:fwrite("Running etc for dependent module ~p ~n",[Module]),
+            case getLibModulePath(Module) of 
+                no_lib_module -> type_check_mods([Module], File);
+                Path -> registerAsLib(Module), check_modules([Path])
+            end
+    end.
+
+getLibModulePath(Module) ->
+    LibDir = code:lib_dir(),
+    ModString = atom_to_list(Module),
+    WC = LibDir ++ "/*/src/" ++ ModString ++ ".erl",
+    case filelib:wildcard(WC) of
+        [] -> no_lib_module;
+        [Path | _] -> Path
+    end.
+
+isAlreadyChecked(Module) -> 
+    case ets:lookup(compile_config, Module) of 
+        [] ->  false;
+        _  -> true
+    end.
+
+registerAsLib(Module) -> 
+    ets:insert(compile_config, {Module, stdlib}).
