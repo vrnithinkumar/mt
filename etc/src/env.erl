@@ -88,17 +88,17 @@ freeInEnv (Env) ->
 length(Env) -> erlang:length(Env#ten.bindings).
 
 dumpModuleBindings(Env,Module) ->
-    InterfaceFile = lists:concat([Module,".ei"]),
+    InterfaceFile = lists:concat([Module,".erltypes"]),
     ModuleBindings = Env#ten.bindings -- ((env:default())#ten.bindings ++ Env#ten.ext_bindings),
     file:write_file(InterfaceFile,erlang:term_to_binary(ModuleBindings)).
 
 dumpModuleSpecs(Env,Module) ->
-    InterfaceFile = lists:concat([Module,".ei"]),
+    InterfaceFile = lists:concat([Module,".erltypes"]),
     ModuleBindings = Env#ten.bindings -- ((env:default())#ten.bindings ++ Env#ten.ext_bindings),
     file:write_file(InterfaceFile,erlang:term_to_binary(ModuleBindings)).
 
 readModuleBindings(Module) ->
-    InterfaceFile = lists:concat([Module,".ei"]),
+    InterfaceFile = lists:concat([Module,".erltypes"]),
     {ok, Data} = file:read_file(InterfaceFile),
     erlang:binary_to_term(Data).
 
@@ -112,7 +112,7 @@ addModuleBindings(Env, Module) ->
 
 lookupRemote(Module,X,_Env) ->
     dm:type_infer(Module),
-    InterfaceFile = lists:concat([Module,".ei"]),
+    InterfaceFile = lists:concat([Module,".erltypes"]),
     case filelib:is_regular(InterfaceFile)of
         true -> lookup(X,#ten{bindings = readModuleBindings(Module)});
         false -> na

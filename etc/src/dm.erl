@@ -102,5 +102,5 @@ registerAsLib(Module) ->
     ets:insert(compile_config, {Module, stdlib}).
 
 moduleDumpExists(Module) ->
-    MIF = atom_to_list(Module) ++ ".ei",
+    MIF = atom_to_list(Module) ++ ".erltypes",
     filelib:is_regular(MIF).
