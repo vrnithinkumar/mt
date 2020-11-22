@@ -5,18 +5,21 @@
 -define(PRINT(Var), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
 -endif.
 
--export([check_modules/1,type_check_mods/2, type_infer/1]).
+-export([type_check_mods/2, type_infer/1]).
 
 type_check_mods(Mods, File) ->
-    ModPaths = get_module_paths(Mods, File),
-    check_modules(ModPaths).
+    FilteredMods = lists:filter(fun(M) -> not moduleDumpExists(M) end,Mods),
+    ModPaths = get_module_paths(FilteredMods, File),
+    check_modules_path(ModPaths).
 
 get_module_paths(Modules, Path) ->
     Base = string:join(lists:droplast(string:tokens(Path, "/")), "/"),
     lists:map(fun(M) -> Base ++ "/" ++ atom_to_list(M) ++ ".erl" end, Modules).
 
-check_modules(Modules)->
+check_modules_path(Modules)->
     lists:map(fun(M) ->
+        ?PRINT(M),
+        io:fwrite("Running etc for dependent module ~p ~n",[M]),
         main_spec([M])
      end, Modules).
 
@@ -71,13 +74,12 @@ type_infer(Module)->
     end.
 
 lookupModule(Module, File) ->
-    case isAlreadyChecked(Module) of 
+    case isAlreadyChecked(Module) or moduleDumpExists(Module) of 
         true -> na;
         false ->
-            io:fwrite("Running etc for dependent module ~p ~n",[Module]),
             case getLibModulePath(Module) of 
                 no_lib_module -> type_check_mods([Module], File);
-                Path -> registerAsLib(Module), check_modules([Path])
+                Path -> registerAsLib(Module), check_modules_path([Path])
             end
     end.
 
@@ -98,3 +100,7 @@ isAlreadyChecked(Module) ->
 
 registerAsLib(Module) -> 
     ets:insert(compile_config, {Module, stdlib}).
+
+moduleDumpExists(Module) ->
+    MIF = atom_to_list(Module) ++ ".ei",
+    filelib:is_regular(MIF).

@@ -44,10 +44,64 @@ parse_transform(Forms,_) ->
          _  -> false
     end,
     case ets:lookup(compile_config, Module) of 
-        [] ->  ets:insert(compile_config, {Module, result});
-        [{Module, Type}] -> ?PRINT(Type)
-    end,
+        [] ->  ets:insert(compile_config, {Module, result}),
+            parse_transform_userdefined(Forms);
+        [{Module, Type}] -> ?PRINT(Type) ,
+            case Type of 
+                stdlib -> parse_transform_stdlib(Forms);
+                _ -> parse_transform_userdefined(Forms)
+            end
+    end.
 
+ parse_transform_userdefined(Forms) ->
+    Module = pp:getModule(Forms),
+    File = pp:getFile(Forms),
+    Mods = pp:getImprtdMods(Forms),
+    dm:type_check_mods(Mods,File),
+    % Get specs
+    Specs = pp:getSpecs(Forms),
+    Spec = getSpecWithAllFuns(Specs),
+    % add UDTs to default env
+    UDTs = pp:getUDTs(Forms),
+    Env0 = lists:foldl(fun(UDT,AccEnv) -> 
+        addUDTNode(UDT,AccEnv) 
+    end, env:default(), UDTs),
+    % add all user defined records
+    Env1 = lists:foldl(fun(Rec,AccEnv) -> 
+        addRec(Rec,AccEnv) 
+    end, Env0, pp:getRecs(Forms)),
+    % add all depend external module functions
+    Env = lists:foldl(fun(Mod, AccEnv) -> 
+        env:addExtModuleBindings(AccEnv,Mod)
+    end, Env1, Mods),
+    % get all functions
+    Functions = pp:getFns(Forms),
+    % make strongly connected components (SCCs) (sorted in topological ordering)
+    SCCs = da:mkSCCs(Functions),
+    % type check each SCC and extend Env
+    try
+        lists:foldl(fun(SCC, AccEnv) ->
+               typeCheckSCC(SCC,AccEnv)
+        end, Env, SCCs)
+    of  
+        Env_ -> 
+            env:dumpModuleBindings(Env_,Module),
+            io:fwrite("Module ~p: ~n",[Module]), 
+            lists:map(fun({X,T}) -> 
+                checkWithSpec(Spec, X, T),
+                io:fwrite("  ~p :: ",[X]), 
+                hm:pretty(T), 
+                io:fwrite("~n",[])
+            end, env:readModuleBindings(Module)),
+            io:fwrite("~n",[])
+    catch
+        error:{type_error,Reason} -> erlang:error("Type Error: " ++ Reason)
+    end,
+    pp:eraseAnn(Forms).
+
+parse_transform_stdlib(Forms) ->
+    Module = pp:getModule(Forms),
+    File = pp:getFile(Forms),
     Mods = pp:getImprtdMods(Forms),
     dm:type_check_mods(Mods,File),
     % Get specs
@@ -706,8 +760,10 @@ node2type({atom,_L,true}) ->
     hm:bt(boolean,0);
 node2type({atom,_L,false}) -> 
     hm:bt(boolean,0);
+node2type({atom,_L, atom}) -> 
+    hm:bt(atom,0);
 node2type(Node) -> 
-    % ?PRINT(Node),
+    ?PRINT(Node),
     hm:bt(any, 0).
 
 % converts a type (node) in the AST to a list of hm:type()
@@ -819,14 +875,15 @@ getDefaultValue(T) ->
 %% Spec parsing
 getSpecWithAllFuns(Specs) ->
     SpecFns = lists:map(fun(Spec) -> specToType(element(4, Spec)) end, Specs),
-    Spec = spec:empty(),
-    spec:add_functions(SpecFns, Spec).
+    spec:add_functions(SpecFns, spec:empty()).
 
 specToType({QFName, Types}) ->
     {QFName, lists:map(fun node2type/1, Types)}.
 
 checkWithSpec(Spec, X, T) -> 
     SpecTs = spec:lookup(X, Spec),
+    % ?PRINT(SpecTs),
+    % ?PRINT(T),
     case SpecTs of 
         undefined -> [];
          _ ->
