@@ -23,7 +23,7 @@
 -type expr() :: var() | {op,lno(),atom(),expr(),expr()}.
 
 main(Args0) ->
-    % ets:new(compile_config, [set, named_table]),
+    ets:new(compile_config, [set, named_table, public]),
     Args = ["+{parse_transform, tidy}"] ++ 
     case lists:member("+noti",Args0) of
         true -> [];
@@ -37,11 +37,6 @@ main(Args0) ->
 
 parse_transform(Forms,_) ->
     Module = pp:getModule(Forms),
-    % check dependent modules
-    case ets:whereis(compile_config) of
-        undefined -> ets:new(compile_config, [set, named_table, public]);
-        _ -> false
-    end,
     File = pp:getFile(Forms),
     % ?PRINT(File),
     case ets:lookup(compile_config, main_file) of 
@@ -50,7 +45,7 @@ parse_transform(Forms,_) ->
     end,
     case ets:lookup(compile_config, Module) of 
         [] ->  ets:insert(compile_config, {Module, result});
-        Res -> ?PRINT(Res)
+        [{Module, Type}] -> ?PRINT(Type)
     end,
 
     Mods = pp:getImprtdMods(Forms),

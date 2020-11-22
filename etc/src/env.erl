@@ -118,9 +118,6 @@ lookupRemote(Module,X,_Env) ->
         false -> na
     end.
 
-
-
-
 printExtBindings(Env) ->
     Ext = Env#ten.ext_bindings,
     ?PRINT(Ext).
