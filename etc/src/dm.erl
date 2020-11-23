@@ -8,13 +8,19 @@
 -export([type_check_mods/2, type_infer/1]).
 
 type_check_mods(Mods, File) ->
-    FilteredMods = lists:filter(fun(M) -> not moduleDumpExists(M) end,Mods),
+    FilteredMods = lists:filter(fun(M) -> not checkedModule(M) end,Mods),
     ModPaths = get_module_paths(FilteredMods, File),
     check_modules_path(ModPaths).
 
 get_module_paths(Modules, Path) ->
     Base = string:join(lists:droplast(string:tokens(Path, "/")), "/"),
-    lists:map(fun(M) -> Base ++ "/" ++ atom_to_list(M) ++ ".erl" end, Modules).
+    lists:map(fun(M) -> 
+        MP = Base ++ "/" ++ atom_to_list(M) ++ ".erl",
+        case filelib:is_regular(MP) of
+            true  -> MP;
+            false -> registerAsLib(M), getLibModulePath(M)
+        end
+    end, Modules).
 
 check_modules_path(Modules)->
     lists:map(fun(M) ->
@@ -73,7 +79,7 @@ type_infer(Module)->
     end.
 
 lookupModule(Module, File) ->
-    case isAlreadyChecked(Module) or moduleDumpExists(Module) of 
+    case checkedModule(Module) of 
         true -> na;
         false ->
             case getLibModulePath(Module) of 
@@ -91,7 +97,10 @@ getLibModulePath(Module) ->
         [Path | _] -> Path
     end.
 
-isAlreadyChecked(Module) -> 
+checkedModule(Module) ->
+    isAlreadyChecking(Module) or moduleDumpExists(Module).
+
+isAlreadyChecking(Module) -> 
     case ets:lookup(compile_config, Module) of 
         [] ->  false;
         _  -> true

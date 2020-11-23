@@ -36,6 +36,8 @@ defaultEnv() ->
         {'xor', hm:funt([hm:bt(boolean,0),hm:bt(boolean,0)],hm:bt(boolean,0),0)},
         {'orelse', hm:funt([hm:bt(boolean,0),hm:bt(boolean,0)],hm:bt(boolean,0),0)},
         {'andalso', hm:funt([hm:bt(boolean,0),hm:bt(boolean,0)],hm:bt(boolean,0),0)},
+        {{max, 2}, hm:forall(a,[],hm:forall(b,[],hm:funt([hm:tvar(a,0),hm:tvar(a,0)],hm:tvar(a,0),0),0),0)},
+        {{min, 2}, hm:forall(a,[],hm:forall(b,[],hm:funt([hm:tvar(a,0),hm:tvar(a,0)],hm:tvar(a,0),0),0),0)},
         {'==', hm:forall(a,[],hm:forall(b,[], hm:funt([hm:tvar(a,0),hm:tvar(a,0)],hm:bt(boolean,0),0),0),0)},
         {'/=', hm:forall(a,[],hm:forall(b,[], hm:funt([hm:tvar(a,0),hm:tvar(a,0)],hm:bt(boolean,0),0),0),0)},
         {'=<', hm:forall(a,[],hm:forall(b,[], hm:funt([hm:tvar(a,0),hm:tvar(a,0)],hm:bt(boolean,0),0),0),0)},

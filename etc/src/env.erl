@@ -37,7 +37,15 @@ empty() -> #ten{}.
 default() -> rt:defaultEnv().
 
 % lookup :: (Var, [Var,Type])  -> Type
-lookup(X,Env) -> proplists:get_value(X, Env#ten.bindings).
+lookup(X,Env) -> 
+    case proplists:get_value(X,Env#ten.bindings) of 
+        undefined -> 
+            case look_default_erlang(X,Env) of 
+                undefined -> undefined;
+                Res       -> Res
+            end;
+         Res -> Res
+    end.
 
 lookup_ext_binding(X,Env) -> proplists:get_value(X, Env#ten.ext_bindings).
 
@@ -122,8 +130,30 @@ lookupRemote(Module,X,_Env) ->
     dm:type_infer(Module),
     InterfaceFile = lists:concat([Module,".erltypes"]),
     case filelib:is_regular(InterfaceFile)of
-        true -> lookup(X,#ten{bindings = readModuleBindings(Module)});
+        true -> lookup_then_try_with_module(X, Module);
         false -> na
+    end.
+
+lookup_then_try_with_module({Func,ArgCount} = X, Module) ->
+    case proplists:get_value(X, readModuleBindings(Module)) of
+        undefined ->
+            NewX = {Module, Func,ArgCount},
+            case proplists:get_value(NewX, readModuleBindings(Module)) of
+                undefined -> undefined;
+                Res -> Res
+            end;
+        Res -> Res
+    end.
+
+look_default_erlang({erlang,Func,ArgCount}, Env) ->
+    case lookupRemote(erlang, {Func,ArgCount}, Env) of 
+        undefined -> undefined;
+        Res       -> Res
+    end;
+look_default_erlang(X, Env) ->
+    case lookupRemote(erlang, X, Env) of 
+        undefined -> undefined;
+        Res       -> Res
     end.
 
 printExtBindings(Env) ->

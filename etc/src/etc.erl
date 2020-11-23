@@ -38,14 +38,14 @@ main(Args0) ->
 parse_transform(Forms,_) ->
     Module = pp:getModule(Forms),
     File = pp:getFile(Forms),
-    case ets:lookup(compile_config, main_file) of 
+    case ets:lookup(compile_config, main_file) of
         [] ->  ets:insert(compile_config, {main_file, File});
          _  -> false
     end,
-    case ets:lookup(compile_config, Module) of 
-        [] ->  ets:insert(compile_config, {Module, result}),
+    case ets:lookup(compile_config, Module) of
+        [] ->  ets:insert(compile_config, {Module, user_defined}),
             parse_transform_userdefined(Forms);
-        [{Module, Type}] -> ?PRINT(Type) ,
+        [{Module, Type}] ->
             case Type of 
                 stdlib -> parse_transform_stdlib(Forms);
                 _ -> parse_transform_userdefined(Forms)
@@ -55,7 +55,8 @@ parse_transform(Forms,_) ->
  parse_transform_userdefined(Forms) ->
     Module = pp:getModule(Forms),
     File = pp:getFile(Forms),
-    Mods = pp:getImprtdMods(Forms),
+    % add erlang module as the expected one.
+    Mods = pp:getImprtdMods(Forms) ++ [erlang],
     dm:type_check_mods(Mods,File),
     % Get specs
     Specs = pp:getSpecs(Forms),
