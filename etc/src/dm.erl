@@ -18,8 +18,7 @@ get_module_paths(Modules, Path) ->
 
 check_modules_path(Modules)->
     lists:map(fun(M) ->
-        ?PRINT(M),
-        io:fwrite("Running etc for dependent module ~p ~n",[M]),
+        io:fwrite("Running etc for dependent module ~p ~n~n",[M]),
         main_spec([M])
      end, Modules).
 
