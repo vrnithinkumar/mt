@@ -7,7 +7,9 @@
         ,isPatternInf/1,setPatternInf/1,addGuard/3,checkGuard/2
         ,enableGuardExprEnv/1,disableGuardExprEnv/1
         ,isGuardExprEnabled/1 %,addModuleBindings/2
-        ,addExtModuleBindings/2,lookup_ext_binding/2, printExtBindings/1]).
+        ,addExtModuleBindings/2,lookup_ext_binding/2
+        ,printExtBindings/1, dumpModuleSpecs/2
+        ,readModuleSpecs/1, lookup_spec_binding/2]).
 
 -export_type([env/0]).
 
@@ -92,12 +94,18 @@ dumpModuleBindings(Env,Module) ->
     ModuleBindings = Env#ten.bindings -- ((env:default())#ten.bindings ++ Env#ten.ext_bindings),
     file:write_file(InterfaceFile,erlang:term_to_binary(ModuleBindings)).
 
-dumpModuleSpecs(Env,Module) ->
-    InterfaceFile = lists:concat([Module,".erltypes"]),
-    ModuleBindings = Env#ten.bindings -- ((env:default())#ten.bindings ++ Env#ten.ext_bindings),
-    file:write_file(InterfaceFile,erlang:term_to_binary(ModuleBindings)).
-
 readModuleBindings(Module) ->
+    InterfaceFile = lists:concat([Module,".erltypes"]),
+    {ok, Data} = file:read_file(InterfaceFile),
+    erlang:binary_to_term(Data).
+
+dumpModuleSpecs(Spec, Module) ->
+    InterfaceFile = lists:concat([Module,".erltypes"]),
+    file:write_file(InterfaceFile,erlang:term_to_binary(spec:get_spec_functions(Spec))).
+
+lookup_spec_binding(X,Module) -> proplists:get_value(X, readModuleSpecs(Module)).
+
+readModuleSpecs(Module) ->
     InterfaceFile = lists:concat([Module,".erltypes"]),
     {ok, Data} = file:read_file(InterfaceFile),
     erlang:binary_to_term(Data).
