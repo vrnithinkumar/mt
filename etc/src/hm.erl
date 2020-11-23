@@ -184,7 +184,10 @@ subT ({forall, {tvar, L, X}, Ps, A}, Sub)   ->
         true    ->  {forall, {tvar, L, X}, subPs(Ps,Sub) ,subT(A,maps:remove(X,Sub))};  % avoids name capture!
         false   ->  {forall, {tvar, L, X}, subPs(Ps,Sub) ,subT(A,Sub)}
     end;
-subT ({whilst,Ps,T},Sub) -> {whilst,subPs(Ps,Sub),subT(T,Sub)}.
+subT ({whilst,Ps,T},Sub) -> {whilst,subPs(Ps,Sub),subT(T,Sub)};
+%% TODO VR : Fix how to support multiple definitions%%
+subT ([Type|_Rest], Sub) -> subT(Type, Sub).
+
 
 % Repetitive substution on a constraint
 -spec subC(constraint(), sub()) -> constraint().

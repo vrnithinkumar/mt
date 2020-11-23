@@ -38,7 +38,6 @@ main(Args0) ->
 parse_transform(Forms,_) ->
     Module = pp:getModule(Forms),
     File = pp:getFile(Forms),
-    % ?PRINT(File),
     case ets:lookup(compile_config, main_file) of 
         [] ->  ets:insert(compile_config, {main_file, File});
          _  -> false
@@ -106,43 +105,17 @@ parse_transform_stdlib(Forms) ->
     dm:type_check_mods(Mods,File),
     % Get specs
     Specs = pp:getSpecs(Forms),
-    Spec = getSpecWithAllFuns(Specs),
+    SpecTypes = getSpecWithAllFuns(Specs),
     % add UDTs to default env
-    UDTs = pp:getUDTs(Forms),
-    Env0 = lists:foldl(fun(UDT,AccEnv) -> 
-        addUDTNode(UDT,AccEnv) 
-    end, env:default(), UDTs),
-    % add all user defined records
-    Env1 = lists:foldl(fun(Rec,AccEnv) -> 
-        addRec(Rec,AccEnv) 
-    end, Env0, pp:getRecs(Forms)),
-    % add all depend external module functions
-    Env = lists:foldl(fun(Mod, AccEnv) -> 
-        env:addExtModuleBindings(AccEnv,Mod)
-    end, Env1, Mods),
-    % get all functions
-    Functions = pp:getFns(Forms),
-    % make strongly connected components (SCCs) (sorted in topological ordering)
-    SCCs = da:mkSCCs(Functions),
-    % type check each SCC and extend Env
-    try
-        lists:foldl(fun(SCC, AccEnv) ->
-               typeCheckSCC(SCC,AccEnv)
-        end, Env, SCCs)
-    of  
-        Env_ -> 
-            env:dumpModuleBindings(Env_,Module),
-            io:fwrite("Module ~p: ~n",[Module]), 
-            lists:map(fun({X,T}) -> 
-                checkWithSpec(Spec, X, T),
-                io:fwrite("  ~p :: ",[X]), 
-                hm:pretty(T), 
-                io:fwrite("~n",[])
-            end, env:readModuleBindings(Module)),
-            io:fwrite("~n",[])
-    catch
-        error:{type_error,Reason} -> erlang:error("Type Error: " ++ Reason)
-    end,
+    env:dumpModuleSpecs(SpecTypes,Module),
+    io:fwrite("Library Module:- ~p ~n",[Module]), 
+    lists:map(fun({X,T}) -> 
+        io:fwrite("  ~p :: ",[X]),
+        [Head | _Tail] = T ,
+        hm:pretty(Head), 
+        io:fwrite("~n",[])
+    end, env:readModuleSpecs(Module)),
+    io:fwrite("~n",[]),
     pp:eraseAnn(Forms).
 
 typeCheckSCC(Functions,Env) ->
@@ -676,7 +649,6 @@ lookupRemote(X,Env,L,Module) ->
             {hm:replaceLn(FT,0,L),Ps}
     end.
 
-
 -spec lookupConstrs(hm:tvar(),hm:env(),integer()) -> {[hm:type()],[hm:predicate()]}.
 lookupConstrs(X,Env,L) ->
     case env:lookupConstrs(X,Env) of
@@ -761,6 +733,8 @@ node2type({atom,_L,true}) ->
 node2type({atom,_L,false}) -> 
     hm:bt(boolean,0);
 node2type({atom,_L, atom}) -> 
+    hm:bt(atom,0);
+node2type({atom,_L, _}) -> 
     hm:bt(atom,0);
 node2type(Node) -> 
     ?PRINT(Node),
