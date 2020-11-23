@@ -14,7 +14,7 @@
 -endif.
 
 -export([parse_transform/2]).
--export([empty/0, lookup/2, extend/3, add_functions/2]).
+-export([empty/0, lookup/2, extend/3, add_functions/2, get_spec_functions/1]).
 -export_type([spec/0]).
 
 % Type checker ENvironment
@@ -34,5 +34,9 @@ parse_transform(Forms,_Opt) ->
     pp:eraseAnn(Forms).
 
 extend(X,A,Spec) -> Spec#specenv{functions = [{X,A} | Spec#specenv.functions]}.
+
 add_functions(Fs,Spec) -> Spec#specenv{functions = Fs}.
+
+get_spec_functions(Spec) -> Spec#specenv.functions.
+
 lookup(X, Spec) -> proplists:get_value(X, Spec#specenv.functions).
