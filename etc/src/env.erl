@@ -37,7 +37,7 @@ empty() -> #ten{}.
 default() -> rt:defaultEnv().
 
 % lookup :: (Var, [Var,Type])  -> Type
-lookup(X,Env) -> 
+lookup({_Func, _ArgCount} = X,Env) -> 
     case proplists:get_value(X,Env#ten.bindings) of 
         undefined -> 
             case look_default_erlang(X,Env) of 
@@ -45,7 +45,8 @@ lookup(X,Env) ->
                 Res       -> Res
             end;
          Res -> Res
-    end.
+    end;
+lookup(X,Env) -> proplists:get_value(X,Env#ten.bindings).
 
 lookup_ext_binding(X,Env) -> proplists:get_value(X, Env#ten.ext_bindings).
 
